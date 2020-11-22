@@ -52,4 +52,5 @@ jobs:
           path: ${{ steps.artifact-name.outputs.name }}.tar
       -
         name: Image digest
-        run: echo "Image digest: ${{ steps.docker-build.outputs.digest }}"
+        run: |
+          echo "Image digest: ${{ steps.docker-build.outputs.digest }}"
