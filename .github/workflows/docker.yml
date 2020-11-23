@@ -59,7 +59,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           cache-to: type=local,dest=${{ steps.names.outputs.cache-path }},mode=max
       -
-        name: Publish artifact
+        name: Upload cache
         uses: actions/upload-artifact@v2
         with:
           name: ${{ steps.names.outputs.artifact }}
@@ -67,7 +67,6 @@ jobs:
 
   publish:
     needs: [get-platforms, build]
-    if: false
     runs-on: ubuntu-latest
     steps:
       -
@@ -88,11 +87,22 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       -
+        name: Download caches
+        uses: actions/download-artifact@v2
+        with:
+          path: ${{ env.CACHE_BASE_PATH }}
+      -
+        name: Generate caches
+        id: caches
+        run: |
+          caches=$(find "$CACHE_BASE_PATH" -mindepth 1 -maxdepth 1 -type d -printf '"type=local,src=%p",')
+          caches="[${caches%,}]"
+          echo "::set-output name=caches::$caches"
+      -
         name: Build image
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
-          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-from: ${{ fromJSON(steps.caches.outputs.caches) }}
           push: true
           tags: alnmawi/python2:latest
-
