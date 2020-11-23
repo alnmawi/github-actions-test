@@ -5,27 +5,42 @@ on:
     branches: main
 
 env:
-  platforms: '["linux/386","linux/amd64","linux/arm/v6","linux/arm/v7","linux/arm64","linux/ppc64le","linux/s390x"]'
+  PLATFORMS: '["linux/386","linux/amd64","linux/arm/v6","linux/arm/v7","linux/arm64","linux/ppc64le","linux/s390x"]'
+  CACHE_BASE_PATH: '/tmp/.buildx'
 
 jobs:
   get-platforms:
     runs-on: ubuntu-latest
     outputs:
-      platforms: ${{ steps.generate-platforms.outputs.platforms }}
+      platforms: ${{ fromJSON(steps.generate-platforms.outputs.platforms) }}
     steps:
       -
         name: Generate platforms
         id: generate-platforms
         run: |
-          echo "::set-output name=platforms::$platforms"
+          echo "::set-output name=platforms::$PLATFORMS"
 
   build:
     needs: get-platforms
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
+        platform: ${{ needs.get-platforms.outputs.platforms }}
+    outputs:
+      artifact: ${{ steps.names.outputs.artifact }}
+      cache-path: ${{ steps.names.outputs.cache-path }}
     steps:
+      -
+        name: Generate names
+        id: names
+        env:
+          platform: ${{ matrix.platform }}
+        run: |
+          platform="${platform////-}"
+          artifact="cache-$platform"
+          echo "::set-output name=platform::$platform"
+          echo "::set-output name=artifact::$artifact"
+          echo "::set-output name=cache-path::$CACHE_BASE_PATH/$artifact"
       -
         name: Checkout
         uses: actions/checkout@v2
@@ -38,24 +53,17 @@ jobs:
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       -
-        name: Cache Docker layers
-        uses: actions/cache@v2
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}-${{ matrix.platform }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-${{ github.sha }}
-            ${{ runner.os }}-buildx-
-      -
         name: Build image
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ matrix.platform }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
+          cache-to: type=local,dest=${{ steps.names.outputs.cache-path }},mode=max
       -
-        name: List cache contents
-        run: ls -laR /tmp/.buildx-cache
+        name: Publish artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ steps.names.outputs.artifact }}
+          path: ${{ steps.names.outputs.cache-path }}
 
   publish:
     needs: [get-platforms, build]
@@ -69,7 +77,7 @@ jobs:
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
-          platforms: ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ',') }}
+          platforms: ${{ join(needs.get-platforms.outputs.platforms, ',') }}
       -
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
@@ -80,20 +88,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       -
-        name: Cache Docker layers
-        uses: actions/cache@v2
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-      -
         name: Build image
         uses: docker/build-push-action@v2
         with:
-          platforms: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
+          platforms: ${{ needs.get-platforms.outputs.platforms }}
           cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
           push: true
           tags: alnmawi/python2:latest
 
