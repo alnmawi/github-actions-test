@@ -113,4 +113,4 @@ jobs:
           platforms: ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ',') }}
           cache-from: ${{ steps.caches.outputs.caches }}
           push: true
-          tags: alnmawi/python2:latest
+          tags: alnmawi/github-actions-test:latest
