@@ -4,19 +4,24 @@ on:
   push:
     branches: main
 
+env:
+  platforms: |
+    [
+      "linux/386",
+      "linux/amd64",
+      "linux/arm/v6",
+      "linux/arm/v7",
+      "linux/arm64",
+      "linux/ppc64le",
+      "linux/s390x"
+    ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform:
-          - linux/386
-          - linux/amd64
-          - linux/arm/v6
-          - linux/arm/v7
-          - linux/arm64
-          - linux/ppc64le
-          - linux/s390x
+        platform: ${{ fromJSON(env.platforms) }}
     steps:
       -
         name: Checkout
@@ -30,34 +35,57 @@ jobs:
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       -
+        name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      -
+        name: Build image
+        uses: docker/build-push-action@v2
+        with:
+          platforms: ${{ matrix.platform }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+        with:
+          platforms: ${{ fromJSON(env.platforms) }}
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      -
         name: Login to Docker Hub
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       -
-        name: Generate artifact name
-        id: artifact-name
-        env:
-          platform: ${{ matrix.platform }}
-        run: |
-          name="image-${platform////-}"
-          echo "::set-output name=name::$name"
+        name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
       -
         name: Build image
-        id: docker-build
         uses: docker/build-push-action@v2
         with:
-          platforms: ${{ matrix.platform }}
+          platforms: ${{ fromJSON(env.platforms) }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
           push: true
-#          outputs: type=docker,dest=${{ steps.artifact-name.outputs.name }}.tar
-#      -
-#        name: Publish artifact
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: ${{ steps.artifact-name.outputs.name }}
-#          path: ${{ steps.artifact-name.outputs.name }}.tar
-      -
-        name: Image digest
-        run: |
-          echo "Image digest: ${{ steps.docker-build.outputs.digest }}"
+          tags: alnmawi/python2:latest
+
