@@ -5,7 +5,16 @@ on:
     branches: main
 
 env:
-  PLATFORMS: '["linux/386","linux/amd64","linux/arm/v6","linux/arm/v7","linux/arm64","linux/ppc64le","linux/s390x"]'
+  PLATFORMS:
+    [
+      "linux/386",
+      "linux/amd64",
+      "linux/arm/v6",
+      "linux/arm/v7",
+      "linux/arm64",
+      "linux/ppc64le",
+      "linux/s390x"
+    ]
   CACHE_BASE_PATH: '/tmp/.buildx'
 
 jobs:
@@ -18,7 +27,7 @@ jobs:
         name: Generate platforms
         id: generate-platforms
         run: |
-          echo "::set-output name=platforms::$PLATFORMS"
+          echo "::set-output name=platforms::${PLATFORMS//$'\n'/'%0A'}"
 
   build:
     needs: get-platforms
@@ -95,14 +104,13 @@ jobs:
         name: Generate caches
         id: caches
         run: |
-          caches=$(find "$CACHE_BASE_PATH" -mindepth 1 -maxdepth 1 -type d -printf '"type=local,src=%p",')
-          caches="[${caches%,}]"
-          echo "::set-output name=caches::$caches"
+          caches=$(find "$CACHE_BASE_PATH" -mindepth 1 -maxdepth 1 -type d -printf '"type=local,src=%p\n"')
+          echo "::set-output name=caches::${caches//$'\n'/'%0A'}"
       -
         name: Build image
         uses: docker/build-push-action@v2
         with:
-          platforms: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
-          cache-from: ${{ fromJSON(steps.caches.outputs.caches) }}
+          platforms: ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ',') }}
+          cache-from: ${{ steps.caches.outputs.caches }}
           push: true
           tags: alnmawi/python2:latest
