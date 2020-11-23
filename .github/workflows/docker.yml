@@ -42,8 +42,9 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          key: ${{ runner.os }}-buildx-${{ github.sha }}-${{ matrix.platform }}
           restore-keys: |
+            ${{ runner.os }}-buildx-${{ github.sha }}
             ${{ runner.os }}-buildx-
       -
         name: Build image
@@ -52,9 +53,13 @@ jobs:
           platforms: ${{ matrix.platform }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+      -
+        name: List cache contents
+        run: ls -laR /tmp/.buildx-cache
 
   publish:
     needs: [get-platforms, build]
+    if: false
     runs-on: ubuntu-latest
     steps:
       -
@@ -64,7 +69,7 @@ jobs:
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
-          platforms: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
+          platforms: ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ',') }}
       -
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
