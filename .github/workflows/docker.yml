@@ -5,7 +5,7 @@ on:
     branches: main
 
 env:
-  platforms: |
+  platforms: >
     [
       "linux/386",
       "linux/amd64",
@@ -17,11 +17,23 @@ env:
     ]
 
 jobs:
+  get-platforms:
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.generate-platforms.outputs.platforms }}
+    steps:
+      -
+        name: Generate platforms
+        id: generate-platforms
+        run: |
+          echo "::set-output name=platforms::$platforms"
+
   build:
+    needs: get-platforms
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: ${{ fromJSON(env.platforms) }}
+        platform: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
     steps:
       -
         name: Checkout
@@ -51,7 +63,7 @@ jobs:
           cache-to: type=local,dest=/tmp/.buildx-cache
 
   publish:
-    needs: build
+    needs: [get-platforms, build]
     runs-on: ubuntu-latest
     steps:
       -
@@ -61,7 +73,7 @@ jobs:
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
-          platforms: ${{ fromJSON(env.platforms) }}
+          platforms: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
       -
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
@@ -83,7 +95,7 @@ jobs:
         name: Build image
         uses: docker/build-push-action@v2
         with:
-          platforms: ${{ fromJSON(env.platforms) }}
+          platforms: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
           push: true
