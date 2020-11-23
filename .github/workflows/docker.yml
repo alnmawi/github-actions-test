@@ -5,7 +5,7 @@ on:
     branches: main
 
 env:
-  PLATFORMS:
+  PLATFORMS: |
     [
       "linux/386",
       "linux/amd64",
