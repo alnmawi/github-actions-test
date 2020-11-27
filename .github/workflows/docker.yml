@@ -58,8 +58,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ matrix.platform }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }},mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache,mode=max
 
   publish:
     needs: [get-platforms, build]
@@ -94,7 +94,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ',') }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }},mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache,mode=max
           push: true
           tags: alnmawi/github-actions-test:latest
