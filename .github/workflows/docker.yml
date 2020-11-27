@@ -15,6 +15,8 @@ env:
       "linux/ppc64le",
       "linux/s390x"
     ]
+  CACHE_REPO: "alnmawi/build-cache"
+  DOCKERHUB_REPO: "${{ github.repository }}"
 
 jobs:
   get-platforms:
@@ -35,6 +37,13 @@ jobs:
       matrix:
         platform: ${{ fromJSON(needs.get-platforms.outputs.platforms) }}
     steps:
+      -
+        name: Generate cache
+        id: cache
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          echo "::set-output name=cache::${CACHE_REPO}:${DOCKERHUB_REPO////-}-${PLATFORM////-}"
       -
         name: Checkout
         uses: actions/checkout@v2
@@ -57,13 +66,26 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ matrix.platform }}
-          cache-from: type=registry,ref=${{ github.repository }}:cache
-          cache-to: type=registry,ref=${{ github.repository }}:cache,mode=max
+          cache-from: type=registry,ref=${{ jobs.cache.outputs.cache }}
+          cache-to: type=registry,ref=${{ jobs.cache.outputs.cache }},mode=max
 
   publish:
     needs: [get-platforms, build]
     runs-on: ubuntu-latest
     steps:
+      -
+        name: Generate caches
+        id: caches
+        run: |
+          for platform in ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ' ') }}; do
+            cache="type=registry,ref=${CACHE_REPO}:${DOCKERHUB_REPO////-}-${platform////-}"
+            if [ -z "${caches}" ]; then
+              caches="${cache}"
+            else
+              caches="${caches}"$'\n'"${cache}"
+            fi
+          done
+          echo "::set-output name=caches::${caches//$'\n'/'%0A'}"
       -
         name: Checkout
         uses: actions/checkout@v2
@@ -86,6 +108,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ join(fromJSON(needs.get-platforms.outputs.platforms), ',') }}
-          cache-from: type=registry,ref=${{ github.repository }}:cache
+          cache-from: ${{ steps.caches.outputs.caches }}
           push: true
-          tags: ${{ github.repository }}:latest
+          tags: ${{ env.DOCKERHUB_REPO }}:latest
