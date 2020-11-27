@@ -66,8 +66,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           platforms: ${{ matrix.platform }}
-          cache-from: type=registry,ref=${{ jobs.cache.outputs.cache }}
-          cache-to: type=registry,ref=${{ jobs.cache.outputs.cache }},mode=max
+          cache-from: type=registry,ref=${{ steps.cache.outputs.cache }}
+          cache-to: type=registry,ref=${{ steps.cache.outputs.cache }},mode=max
 
   publish:
     needs: [get-platforms, build]
